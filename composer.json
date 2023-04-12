@@ -1,0 +1,24 @@
+{
+    "name": "sunder/chat-app-server",
+    "description": "Chat-app websocket server",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Core\\": "core/"
+        }
+    },
+    "authors": [
+        {
+            "name": "SunderShadow",
+            "email": "sunundershadow@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "php": "^8.2",
+        "swoole/ide-helper": "^5.0",
+        "sunder/di-container": "^1.0"
+    }
+}
