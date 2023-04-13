@@ -19,6 +19,8 @@
     "require": {
         "php": "^8.2",
         "swoole/ide-helper": "^5.0",
-        "sunder/di-container": "^1.0"
+        "sunder/di-container": "^1.0",
+        "ext-pdo": "*",
+        "sunder/dotenv": "^1.0"
     }
 }

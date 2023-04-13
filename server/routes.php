@@ -1,4 +1,4 @@
 <?php
 return [
-    'action' => \App\Action\EchoAction::class
+    'message:send' => \App\Action\Message\Send::class
 ];

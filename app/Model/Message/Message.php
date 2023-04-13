@@ -1,17 +1,18 @@
 <?php
 
-namespace App\Model\User;
+namespace App\Model\Message;
 
-use App\Model\Message\Message;
 use App\Model\Model;
 use Core\Connection\DB;
 use PDOStatement;
 
-class User extends Model
+class Message extends Model
 {
     public int $id;
 
-    public string $name;
+    public string $text;
+
+    public int $sender_id;
 
     private static PDOStatement $readQuery;
 
@@ -20,15 +21,15 @@ class User extends Model
     /** @var callable */
     private static $getSavedRecord;
 
-    // TODO: reduce code (see \App\Model\Message\Message.php)
-    public static function boot(DB $connection): void
+    // TODO: reduce code (see \App\Model\User\User.php)
+    public static function boot(DB $connection)
     {
-        self::$readQuery = $connection->prepare('SELECT * FROM users WHERE id = :id');
-        self::$saveQuery = $connection->prepare('INSERT into users(name) VALUE(:name)');
+        self::$readQuery = $connection->prepare('SELECT * FROM messages WHERE id = :id');
+        self::$saveQuery = $connection->prepare('INSERT INTO messages(text, sender_id) VALUES (:text, :sender_id)');
         self::$getSavedRecord = static function () use ($connection) {
-            self::$readQuery->execute(compact([
+            self::$readQuery->execute([
                 'id' => $connection->lastInsertId()
-            ]));
+            ]);
             return self::$readQuery->fetch(\PDO::FETCH_ASSOC);
         };
     }
@@ -42,7 +43,8 @@ class User extends Model
         $data = self::$readQuery->fetch(\PDO::FETCH_ASSOC);
         if ($data) {
             $this->id = $data['id'];
-            $this->name = $data['name'];
+            $this->text = $data['text'];
+            $this->sender_id = $data['sender_id'];
         }
 
         return !!$data;
@@ -51,21 +53,18 @@ class User extends Model
     public function save(): bool
     {
         $isSuccess = self::$saveQuery->execute([
-            'name' => $this->name,
+            'text' => $this->text,
+            'sender_id' => $this->sender_id
         ]);
 
         if ($isSuccess) {
             $data = (self::$getSavedRecord)();
 
             $this->id = $data['id'];
+            $this->text = $data['text'];
+            $this->sender_id = $data['sender_id'];
         }
 
         return $isSuccess;
-    }
-
-    public function attachMessage(Message $message): bool
-    {
-        $message->sender_id = $this->id;
-        return $message->save();
     }
 }

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b9ae7eb1f98c07822882d5c794578160",
+    "content-hash": "435cc1e676db0b2a4e6da896eade3175",
     "packages": [
         {
             "name": "psr/container",
@@ -104,6 +104,49 @@
             "time": "2023-04-12T21:28:01+00:00"
         },
         {
+            "name": "sunder/dotenv",
+            "version": "v1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/SunderShadow/php-dotenv.git",
+                "reference": "3830dc43dcaf53bb3dbfd1adc50d8fed130aa6cd"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/SunderShadow/php-dotenv/zipball/3830dc43dcaf53bb3dbfd1adc50d8fed130aa6cd",
+                "reference": "3830dc43dcaf53bb3dbfd1adc50d8fed130aa6cd",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Sunder\\Dotenv\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "SunderShadow",
+                    "email": "sunundershadow@gmail.com"
+                }
+            ],
+            "description": ".env file parser",
+            "support": {
+                "issues": "https://github.com/SunderShadow/php-dotenv/issues",
+                "source": "https://github.com/SunderShadow/php-dotenv/tree/v1.0"
+            },
+            "time": "2023-04-08T16:50:29+00:00"
+        },
+        {
             "name": "swoole/ide-helper",
             "version": "5.0.2",
             "source": {
@@ -143,7 +186,8 @@
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
-        "php": "^8.2"
+        "php": "^8.2",
+        "ext-pdo": "*"
     },
     "platform-dev": [],
     "plugin-api-version": "2.3.0"

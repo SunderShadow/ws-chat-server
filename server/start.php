@@ -9,24 +9,47 @@ use Swoole\WebSocket\Server;
 
 require __DIR__ . "/../vendor/autoload.php";
 
+// Env init
+$env = new \Core\Env();
+$env->load(__DIR__ . '/../.env');
+
+// DB Connection init
+$dsn = $env['DB_DRIVER'] . ':host=' . $env['DB_HOST'] . ';dbname=' . $env['DB_NAME'];
+$connection = new \Core\Connection\DB($dsn, $env['DB_USERNAME'], $env['DB_PASSWORD']);
+
+// Boot models
+$bootModels = require __DIR__ . "/../app/Model/kernel.php";
+$bootModels($connection);
+
+// Connected users init
+$connectedUsers = new \Core\ConnectedUsersRepository();
+
 // Dependency injection init
-$di = new DI(require "dependencies.php");
+$di = new DI([
+    $env::class => $env,
+    $connection::class => $connection,
+    $connectedUsers::class => $connectedUsers,
+    \App\Model\User\Sender::class => function (DI $di) {
+        return new \App\Model\User\Sender($di->get(\Core\Router\Request::class), $di->get(\Core\ConnectedUsersRepository::class));
+    }
+]);
 
 // Router init
-$routes = require "routes.php";
-$routeResolver = new RouteResolver($di);
-
-$router = new Router($routes, $routeResolver);
+$router = new Router(require "routes.php", new RouteResolver($di));
 $router->onUndefined(function () {
     echo "undefined";
 });
 
-$server = new Server('0.0.0.0', 8081);
+$server = new Server($env['SERVER_HOST'], $env['SERVER_PORT']);
+
+$server->on('open', function (Server $server, \Swoole\Http\Request $request) use ($connectedUsers){
+    $connectedUsers->add($request->fd, 1);
+});
 
 $server->on('message', function (Server $server, Frame $frame) use ($router) {
     try {
-        $request = new FrameToRequestAdapter($frame);
-        $response = $router->resolve($request);
+        $response = $router->resolve(new FrameToRequestAdapter($frame));
+
         foreach ($response->to as $fd) {
             $server->push($fd, json_encode([
                 'action' => $response->actionName,
@@ -39,6 +62,10 @@ $server->on('message', function (Server $server, Frame $frame) use ($router) {
             'message' => $e->getMessage()
         ]));
     }
+});
+
+$server->on('close', function (Server $server, int $fd) use ($connectedUsers){
+    $connectedUsers->remove($fd);
 });
 
 $server->start();
