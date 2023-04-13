@@ -4,6 +4,7 @@ namespace Core\Router;
 
 class Router
 {
+    /** @var callable */
     private $onUndefined;
 
     public function __construct(
@@ -26,16 +27,14 @@ class Router
     /**
      * @throws \ReflectionException
      */
-    public function resolve(string $actionName): void
+    public function resolve(Request $request): Response
     {
-        $action = $this->routes[$actionName] ?? $this->onUndefined;
-        $request = new Request(0, [], $actionName);
+        $action = $this->routes[$request->action] ?? $this->onUndefined;
+        $response =  $this->resolver->resolve($action, $request);
 
-        $response = $this->resolver->resolve($action, $request);
-
-        if ($response) {
-            var_dump($response);
-            // TODO: implement response handle
+        if (!$response) {
+            $response = new Response([], '');
         }
+        return $response;
     }
 }
