@@ -2,16 +2,15 @@
 
 namespace App\Model;
 
-use Core\Connection\DB;
 use PDO;
 use PDOStatement;
+use ReflectionClass;
 use ReflectionProperty;
+use Core\Connection\DB;
 
 abstract class Model
 {
-    protected static string $primaryKey;
-
-    protected static string $table;
+    private static ModelMeta $meta;
 
     protected static PDO $connection;
 
@@ -21,6 +20,7 @@ abstract class Model
 
     public static function boot(DB $connection): void
     {
+        self::$meta = static::getMeta();
         static::$connection = $connection;
         static::setupReadQuery();
         static::setupSaveQuery();
@@ -29,7 +29,7 @@ abstract class Model
     public function read(): bool
     {
         self::$readQuery->execute([
-            static::$primaryKey => $this->{static::$primaryKey}
+            static::$meta->primaryKey => $this->{static::$meta->primaryKey}
         ]);
 
         $data = self::$readQuery->fetch(PDO::FETCH_ASSOC);
@@ -50,13 +50,13 @@ abstract class Model
 
         if ($isSuccess) {
             self::$readQuery->execute([
-                static::$primaryKey => static::$connection->lastInsertId()
+                static::$meta->primaryKey => static::$connection->lastInsertId()
             ]);
 
             $data = self::$readQuery->fetch(PDO::FETCH_ASSOC);
 
             $keys = array_keys($fields);
-            $keys[] = static::$primaryKey;
+            $keys[] = static::$meta->primaryKey;
             foreach ($keys as $key) {
                 $this->{$key} = $data[$key];
             }
@@ -79,8 +79,8 @@ abstract class Model
 
     private static function setupReadQuery(): void
     {
-        $table = static::$table;
-        $primaryKey = static::$primaryKey;
+        $table = static::$meta->table;
+        $primaryKey = static::$meta->primaryKey;
 
         self::$readQuery = self::$connection->prepare("SELECT * FROM $table WHERE $primaryKey = :$primaryKey");
     }
@@ -89,16 +89,35 @@ abstract class Model
     {
         $fieldsNames = [];
         foreach (static::getFields() as $field) {
-            if ($field->name !== static::$primaryKey) {
+            if ($field->name !== static::$meta->primaryKey) {
                 $fieldsNames[] = $field->name;
             }
         }
 
-        $table = static::$table;
+        $table = static::$meta->table;
         $fields = implode(', ', $fieldsNames);
         $values = implode(', ', array_map(fn ($it) => ":$it", $fieldsNames));
 
         self::$saveQuery = self::$connection->prepare("INSERT INTO $table ($fields) VALUES ($values)");
+    }
+
+    /**
+     * @throws \Exception
+     */
+    public static function getMeta(): ModelMeta
+    {
+        $meta = (new ReflectionClass(static::class))->getAttributes(ModelMeta::class);
+        if (!count($meta)) {
+            /** @var class-string<Model> $parent */
+            $parent = get_parent_class(static::class);
+
+            if ($parent) {
+                return $parent::getMeta();
+            }
+            throw new \Exception('Meta must be defined in class: ' . static::class);
+        }
+
+        return $meta[0]->newInstance();
     }
 
     /**
@@ -107,7 +126,7 @@ abstract class Model
     public static function getFields(): array
     {
         return array_filter(
-            (new \ReflectionClass(static::class))->getProperties(),
+            (new ReflectionClass(static::class))->getProperties(),
             fn ($it) => $it->isPublic() && !$it->isReadOnly() && !$it->isStatic()
         );
     }

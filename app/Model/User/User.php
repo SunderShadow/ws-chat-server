@@ -4,16 +4,17 @@ namespace App\Model\User;
 
 use App\Model\Message\Message;
 use App\Model\Model;
+use App\Model\ModelMeta;
 
+#[ModelMeta(
+    primaryKey: 'id',
+    table: 'users'
+)]
 class User extends Model
 {
     public int $id;
 
     public string $name;
-
-    protected static string $table = 'users';
-
-    protected static string $primaryKey = 'id';
 
     public function attachMessage(Message $message): bool
     {

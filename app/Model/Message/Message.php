@@ -3,9 +3,14 @@
 namespace App\Model\Message;
 
 use App\Model\Model;
+use App\Model\ModelMeta;
 use Core\Connection\DB;
 use PDOStatement;
 
+#[ModelMeta(
+    primaryKey: 'id',
+    table: 'messages'
+)]
 class Message extends Model
 {
     public int $id;
@@ -13,8 +18,4 @@ class Message extends Model
     public string $text;
 
     public int $sender_id;
-
-    protected static string $table = 'messages';
-
-    protected static string $primaryKey = 'id';
 }
