@@ -7,7 +7,7 @@ use Core\Router\Request;
 
 class Sender extends User
 {
-    public int $fd;
+    public readonly int $fd;
 
     public function __construct(
         Request $request,
