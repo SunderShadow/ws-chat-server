@@ -19,6 +19,6 @@ class User extends Model
     public function attachMessage(Message $message): bool
     {
         $message->sender_id = $this->id;
-        return $message->save();
+        return $message->create();
     }
 }

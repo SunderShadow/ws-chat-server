@@ -4,24 +4,17 @@ namespace App\Model;
 
 use Exception;
 use PDO;
-use PDOStatement;
 use ReflectionClass;
 use ReflectionProperty;
 use Core\Connection\DB;
 
 abstract class Model
 {
-    private static ModelMeta $meta;
+    protected static ModelMeta $meta;
 
     protected static PDO $connection;
 
-    private static PDOStatement $readQuery;
-
-    private static PDOStatement $saveQuery;
-
-    private static PDOStatement $deleteQuery;
-
-    private static PDOStatement $updateQuery;
+    protected static ModelQueries $queries;
 
     /**
      * @throws Exception
@@ -30,147 +23,81 @@ abstract class Model
     {
         static::$meta = static::getMeta();
         static::$connection = $connection;
-
-        static::setupReadQuery();
-        static::setupSaveQuery();
-        static::setupDeleteQuery();
-        static::setupUpdateQuery();
+        static::$queries = new ModelQueries(
+            static::$meta,
+            static::$connection,
+            static::getFields()
+        );
     }
 
+    public function create(): bool
+    {
+        $fields = [];
+        foreach (static::getFields() as $field) {
+            if ($field->name !== static::$meta->primaryKey){
+                $fields[$field->name] = $this->{$field->name};
+            }
+        }
+
+        if ($isSuccess = self::$queries->createQuery->execute($fields)) {
+            self::$queries->readQuery->execute([
+                static::$meta->primaryKey => static::$connection->lastInsertId()
+            ]);
+
+            $data = self::$queries->readQuery->fetch(PDO::FETCH_ASSOC);
+
+            foreach (static::getFields() as $field) {
+                $this->{$field->name} = $data[$field->name];
+            }
+        }
+
+        return $isSuccess;
+    }
     public function read(): bool
     {
-        self::$readQuery->execute([
+        self::$queries->readQuery->execute([
             static::$meta->primaryKey => $this->{static::$meta->primaryKey}
         ]);
 
-        $data = self::$readQuery->fetch(PDO::FETCH_ASSOC);
-        if ($data) {
-            foreach (static::getFieldNames() as $key) {
-                $this->{$key} = $data[$key];
+        if ($data = self::$queries->readQuery->fetch(PDO::FETCH_ASSOC)) {
+            foreach (static::getFields() as $field) {
+                $this->{$field->name} = $data[$field->name];
             }
         }
 
         return !!$data;
     }
 
-    public function save(): bool
-    {
-        $fields = $this->getBindFields([static::$meta->primaryKey]);
-
-        $isSuccess = self::$saveQuery->execute($fields);
-
-        if ($isSuccess) {
-            self::$readQuery->execute([
-                static::$meta->primaryKey => static::$connection->lastInsertId()
-            ]);
-
-            $data = self::$readQuery->fetch(PDO::FETCH_ASSOC);
-
-            $keys = array_keys($fields);
-            $keys[] = static::$meta->primaryKey;
-            foreach ($keys as $key) {
-                $this->{$key} = $data[$key];
-            }
-        }
-
-        return $isSuccess;
-    }
-
     public function update(): bool
     {
-        $fields = $this->getBindFields();
+        $fields = [];
+        foreach (static::getFields() as $field) {
+            $fields[$field->name] = $this->{$field->name};
+        }
 
-        return self::$updateQuery->execute($fields);
+        return self::$queries->updateQuery->execute($fields);
     }
 
     public function delete(): bool
     {
-        return self::$deleteQuery->execute([
+        return self::$queries->deleteQuery->execute([
             static::$meta->primaryKey => $this->{static::$meta->primaryKey}
         ]);
-    }
-
-    private function getBindFields(array $except = []): array
-    {
-        $fields = [];
-        foreach (static::getFields() as $field) {
-            if (!in_array($field->name, $except)) {
-                $fields[$field->name] = $this->{$field->name};
-            }
-        }
-
-        return $fields;
-    }
-
-    private static function getFieldNames(array $except = []): array
-    {
-        $fieldsNames = [];
-        foreach (static::getFields() as $field) {
-            if (!in_array($field->name, $except)) {
-                $fieldsNames[] = $field->name;
-            }
-        }
-
-        return $fieldsNames;
-    }
-
-    private static function setupReadQuery(): void
-    {
-        $table = static::$meta->table;
-        $primaryKey = static::$meta->primaryKey;
-
-        self::$readQuery = self::$connection->prepare("SELECT * FROM $table WHERE $primaryKey = :$primaryKey");
-    }
-
-    private static function setupSaveQuery(): void
-    {
-        $fieldsNames = static::getFieldNames([static::$meta->primaryKey]);
-
-        $table = static::$meta->table;
-        $fields = implode(', ', $fieldsNames);
-        $values = implode(', ', array_map(fn ($it) => ":$it", $fieldsNames));
-
-        self::$saveQuery = self::$connection->prepare("INSERT INTO $table ($fields) VALUES ($values)");
-    }
-
-    private static function setupDeleteQuery(): void
-    {
-        $table = static::$meta->table;
-        $primaryKey = static::$meta->primaryKey;
-
-        self::$deleteQuery = self::$connection->prepare("DELETE FROM $table WHERE $primaryKey = :$primaryKey");
-    }
-
-    private static function setupUpdateQuery(): void
-    {
-        $table = static::$meta->table;
-        $primaryKey = static::$meta->primaryKey;
-
-        $fieldsToSet = [];
-        foreach (static::getFields() as $field) {
-            if ($field->name !== static::$meta->primaryKey) {
-                $fieldsToSet[] = "$field->name = :$field->name";
-            }
-        }
-        $fieldsToSet = implode(', ', $fieldsToSet);
-
-        self::$updateQuery = self::$connection->prepare("UPDATE $table SET $fieldsToSet WHERE $primaryKey = :$primaryKey");
     }
 
     /**
      * @throws Exception
      */
-    public static function getMeta(): ModelMeta
+    private static function getMeta(): ModelMeta
     {
         $meta = (new ReflectionClass(static::class))->getAttributes(ModelMeta::class);
         if (!count($meta)) {
             /** @var class-string<Model> $parent */
-            $parent = get_parent_class(static::class);
-
-            if ($parent) {
+            if ($parent = get_parent_class(static::class)) {
                 return $parent::getMeta();
             }
-            throw new Exception('Meta must be defined in class: ' . static::class);
+
+            throw new Exception('Meta must be defined in ' . static::class);
         }
 
         return $meta[0]->newInstance();
@@ -183,7 +110,7 @@ abstract class Model
     {
         return array_filter(
             (new ReflectionClass(static::class))->getProperties(),
-            fn ($it) => $it->isPublic() && !$it->isReadOnly() && !$it->isStatic()
+            fn($it) => $it->isPublic() && !$it->isReadOnly() && !$it->isStatic()
         );
     }
 }

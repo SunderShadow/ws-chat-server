@@ -14,7 +14,7 @@ class Update
         $message = new Message();
         $message->id = $request->data['id'];
         $message->read();
-        var_dump($message);
+
         $message->text = $request->data['text'];
         $message->update();
 
