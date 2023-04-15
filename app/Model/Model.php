@@ -17,6 +17,7 @@ abstract class Model
     private static PDOStatement $readQuery;
 
     private static PDOStatement $saveQuery;
+    private static PDOStatement $deleteQuery;
 
     public static function boot(DB $connection): void
     {
@@ -24,6 +25,7 @@ abstract class Model
         static::$connection = $connection;
         static::setupReadQuery();
         static::setupSaveQuery();
+        static::setupDeleteQuery();
     }
 
     public function read(): bool
@@ -65,6 +67,13 @@ abstract class Model
         return $isSuccess;
     }
 
+    public function delete(): bool
+    {
+        return self::$deleteQuery->execute([
+            static::$meta->primaryKey => $this->{static::$meta->primaryKey}
+        ]);
+    }
+
     private function getBindFields(array $except = []): array
     {
         $fields = [];
@@ -99,6 +108,14 @@ abstract class Model
         $values = implode(', ', array_map(fn ($it) => ":$it", $fieldsNames));
 
         self::$saveQuery = self::$connection->prepare("INSERT INTO $table ($fields) VALUES ($values)");
+    }
+
+    private static function setupDeleteQuery(): void
+    {
+        $table = static::$meta->table;
+        $primaryKey = static::$meta->primaryKey;
+
+        self::$deleteQuery = self::$connection->prepare("DELETE FROM $table WHERE $primaryKey = :$primaryKey");
     }
 
     /**
