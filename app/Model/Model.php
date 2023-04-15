@@ -2,6 +2,7 @@
 
 namespace App\Model;
 
+use Exception;
 use PDO;
 use PDOStatement;
 use ReflectionClass;
@@ -17,15 +18,23 @@ abstract class Model
     private static PDOStatement $readQuery;
 
     private static PDOStatement $saveQuery;
+
     private static PDOStatement $deleteQuery;
 
+    private static PDOStatement $updateQuery;
+
+    /**
+     * @throws Exception
+     */
     public static function boot(DB $connection): void
     {
-        self::$meta = static::getMeta();
+        static::$meta = static::getMeta();
         static::$connection = $connection;
+
         static::setupReadQuery();
         static::setupSaveQuery();
         static::setupDeleteQuery();
+        static::setupUpdateQuery();
     }
 
     public function read(): bool
@@ -36,7 +45,7 @@ abstract class Model
 
         $data = self::$readQuery->fetch(PDO::FETCH_ASSOC);
         if ($data) {
-            foreach (array_keys($this->getBindFields()) as $key) {
+            foreach (static::getFieldNames() as $key) {
                 $this->{$key} = $data[$key];
             }
         }
@@ -46,7 +55,7 @@ abstract class Model
 
     public function save(): bool
     {
-        $fields = $this->getBindFields(['id']);
+        $fields = $this->getBindFields([static::$meta->primaryKey]);
 
         $isSuccess = self::$saveQuery->execute($fields);
 
@@ -65,6 +74,13 @@ abstract class Model
         }
 
         return $isSuccess;
+    }
+
+    public function update(): bool
+    {
+        $fields = $this->getBindFields();
+
+        return self::$updateQuery->execute($fields);
     }
 
     public function delete(): bool
@@ -86,6 +102,18 @@ abstract class Model
         return $fields;
     }
 
+    private static function getFieldNames(array $except = []): array
+    {
+        $fieldsNames = [];
+        foreach (static::getFields() as $field) {
+            if (!in_array($field->name, $except)) {
+                $fieldsNames[] = $field->name;
+            }
+        }
+
+        return $fieldsNames;
+    }
+
     private static function setupReadQuery(): void
     {
         $table = static::$meta->table;
@@ -96,12 +124,7 @@ abstract class Model
 
     private static function setupSaveQuery(): void
     {
-        $fieldsNames = [];
-        foreach (static::getFields() as $field) {
-            if ($field->name !== static::$meta->primaryKey) {
-                $fieldsNames[] = $field->name;
-            }
-        }
+        $fieldsNames = static::getFieldNames([static::$meta->primaryKey]);
 
         $table = static::$meta->table;
         $fields = implode(', ', $fieldsNames);
@@ -118,8 +141,24 @@ abstract class Model
         self::$deleteQuery = self::$connection->prepare("DELETE FROM $table WHERE $primaryKey = :$primaryKey");
     }
 
+    private static function setupUpdateQuery(): void
+    {
+        $table = static::$meta->table;
+        $primaryKey = static::$meta->primaryKey;
+
+        $fieldsToSet = [];
+        foreach (static::getFields() as $field) {
+            if ($field->name !== static::$meta->primaryKey) {
+                $fieldsToSet[] = "$field->name = :$field->name";
+            }
+        }
+        $fieldsToSet = implode(', ', $fieldsToSet);
+
+        self::$updateQuery = self::$connection->prepare("UPDATE $table SET $fieldsToSet WHERE $primaryKey = :$primaryKey");
+    }
+
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public static function getMeta(): ModelMeta
     {
@@ -131,7 +170,7 @@ abstract class Model
             if ($parent) {
                 return $parent::getMeta();
             }
-            throw new \Exception('Meta must be defined in class: ' . static::class);
+            throw new Exception('Meta must be defined in class: ' . static::class);
         }
 
         return $meta[0]->newInstance();
